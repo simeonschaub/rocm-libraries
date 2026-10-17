@@ -6490,7 +6490,7 @@ class KernelWriter(PersistentKernelState, StreamKKernelState, metaclass=abc.ABCM
 
     loopLabelToNoGRloopAfterABLoop = Label("NoGRloopAfterABLoop", "" )
 
-    def _kernelBody(pack, packPre, nta, ntb):
+    def _emitKernelBody(pack, packPre, nta, ntb):
       # open unrolled summation loop
       module.addComment2("Unrolled Loop(s) - Begin")
       if kernel["enableTDMA"] and kernel["enableTDMB"] and \
@@ -6507,7 +6507,6 @@ class KernelWriter(PersistentKernelState, StreamKKernelState, metaclass=abc.ABCM
           # have not established this producer-completion boundary.
           module.add(self.papLocalReadCompletion(completeGroup0=
               self.papPgr2DeferredClusterReadyEnabled(kernel, tensorParametersA, tensorParametersB)))
-      self.states.papAddressRoutingReset = Module("PAP address NGLL routing reset")
       module.add(self.states.papAddressRoutingReset)
       module.add(self.papCompleteDeferredClusterReady(kernel, tensorParametersA, tensorParametersB))
       module.add(self.openLoop(kernel, tensorParametersA, tensorParametersB, self.states.unrollIdx, beginLabelOnly=False, nta=nta, ntb=ntb))
@@ -6597,6 +6596,14 @@ class KernelWriter(PersistentKernelState, StreamKKernelState, metaclass=abc.ABCM
       module.add(loop)
       module.add(self.emitHalfPlrPrefetchAcrossPersistentBlock(
           kernel, tensorParametersA, tensorParametersB))
+
+    def _kernelBody(pack, packPre, nta, ntb):
+      self.states.papAddressRoutingReset = Module("PAP address routing reset")
+      # Allocate before the loop caches increments and other temporary operands.
+      # The prepared carrier survives the full counter-two trip until PAP consumes it.
+      with self.allocPapAddressCarrier(kernel, tensorParametersA, tensorParametersB,
+          enabled=self.papHalfPlrAddressPreparationEnabled(kernel, tensorParametersA, tensorParametersB)):
+        _emitKernelBody(pack, packPre, nta, ntb)
 
     if kernel["AdaptiveGemmNTAB"] == 0:
       _kernelBody(pack, packPre, 0, 0)
@@ -6754,7 +6761,7 @@ class KernelWriter(PersistentKernelState, StreamKKernelState, metaclass=abc.ABCM
       module.add(Label(self.rapLabel("PrefetchGlobalLastIterEnd"), ""))
 
     with self.allocPapAddressCarrier(kernel, tensorParametersA, tensorParametersB,
-                                     enabled=not needSecondNGLL and not isDTV) as papCarrier:
+                                     enabled=not kernel["HalfPLR"] and not needSecondNGLL and not isDTV) as papCarrier:
       if papCarrier is not None:
         # NGLL reuses increments emitted by the main loop, before these carrier
         # registers were reserved. Rebuild their temporary operands while the
@@ -10495,7 +10502,7 @@ class KernelWriter(PersistentKernelState, StreamKKernelState, metaclass=abc.ABCM
       if (self.papTdmSupportsShadowAddressPair(kernel, tensorParametersA, tensorParametersB)
           and not isStreamKSpatialCluster(kernel)
           and (kernel["NoTailLoop"] or self.papPgr2RuntimeTailSplit(kernel))
-          and not kernel["HalfPLR"]
+          and (not kernel["HalfPLR"] or isStreamK(kernel))
           and max(vgprIdx, self.states.c.numVgprValu) + 18 <= self.states.regCaps["MaxVgpr"]):
         vgprIdx = max(vgprIdx, self.states.c.numVgprValu)
         self.states.papNextTileVgpr = vgprIdx
