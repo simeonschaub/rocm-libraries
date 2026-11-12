@@ -32,6 +32,7 @@ Full documentation for hipBLASLt is available at [rocm.docs.amd.com/projects/hip
 * Public functions whose C++ exceptions reach the shared exception handler now log
   the function name and exception message at `HIPBLASLT_LOG_LEVEL=1` (error).
   The returned status is unchanged.
+* In a build without rocRoller (`HIPBLASLT_ENABLE_ROCROLLER=OFF`), a GEMM that hipBLASLt routes to rocRoller now runs the checked-in kernel for the configuration the rocRoller build would pick, or gets no algorithm. Previously it could run the kernel of a lower-ranked configuration or, through the `hipblaslt_ext` API, a TensileLite kernel. This applies to `hipblasLtMatmul`, `hipblasLtMatmulAlgoGetHeuristic` and the `hipblaslt_ext` API. These GEMMs now ignore the uniform summation order request (`HIPBLASLT_MATMUL_DESC_UNIFORM_SUMMATION_ORDER_EXT` and `hipblasLtSetUniformSummationOrder`), as GEMMs served by rocRoller already do: a Stream-K kernel that used to be refused with `HIPBLAS_STATUS_INVALID_VALUE` now runs, and the rows of its output may not be bitwise identical.
 
 ### Resolved issues
 
