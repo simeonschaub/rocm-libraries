@@ -5966,7 +5966,6 @@ size_t tuningCandidatesForTest(const RocblasltContractionProblem& prob,
     return found->size();
 }
 
-<<<<<<< HEAD
 namespace rocblaslt
 {
     namespace
@@ -6035,6 +6034,11 @@ static bool gemmDataUsesRocRoller(rocblaslt_handle                        handle
                                   const std::shared_ptr<TensileDataGemm>& data)
 {
     return data && data->rocProblem && useRocRoller(handle, *data->rocProblem);
+}
+
+bool rocblaslt_routed_to_rocroller(rocblaslt_handle handle, const std::shared_ptr<void>& gemmData)
+{
+    return gemmDataUsesRocRoller(handle, std::static_pointer_cast<TensileDataGemm>(gemmData));
 }
 #endif
 
@@ -6272,6 +6276,15 @@ rocblaslt_status runContractionProblem(rocblaslt_handle                   handle
             return rocblaslt_status_invalid_pointer;
         }
 
+#ifndef HIPBLASLT_USE_ROCROLLER
+        // A rocRoller-routed problem is served by the checked-in walk. The
+        // Tensile override file, cache replay, adaptive re-rank and tune mode
+        // would replace that pick with a Tensile-ranked kernel.
+        const bool routedToRocRoller = useRocRoller(handle, prob);
+#else
+        const bool routedToRocRoller = false;
+#endif
+
         std::shared_ptr<TensileDataGemm> data = std::static_pointer_cast<TensileDataGemm>(gemmData);
         rocblaslt_matmul_heuristic_result heuristicResult;
 
@@ -6288,7 +6301,10 @@ rocblaslt_status runContractionProblem(rocblaslt_handle                   handle
         const auto& tuning = TensileLite::TuningModeSingleton::getInstance();
         const bool  keyed  = tuning.reads() && tuningCacheKeyable(prob);
         // Not writes(): online writes the file too but never searches here.
-        const bool tunes = keyed && tuning.mode() == TensileLite::TuningMode::Tune
+        // A rocRoller-off pick is the checked-in kernel, so it does not search
+        // the Tensile cache.
+        const bool tunes = !routedToRocRoller && keyed
+                           && tuning.mode() == TensileLite::TuningMode::Tune
                            && !streamIsCapturing(prob.stream) && !isFusedAllToAll(prob);
 
         // A mode set without a path is otherwise reported by the heuristic
@@ -6299,7 +6315,7 @@ rocblaslt_status runContractionProblem(rocblaslt_handle                   handle
         // Built by whichever of replay and the tuner needs it first.
         std::optional<TensileLite::ProblemOverride> tuningKey;
 
-        if(!callerSuppliedAlgo && keyed)
+        if(!callerSuppliedAlgo && keyed && !routedToRocRoller)
         {
             // Cache replay for a call that passed no algo. hipblasLtMatmul
             // accepts algo == nullptr and then runs getBestSolutions below
@@ -6347,7 +6363,6 @@ rocblaslt_status runContractionProblem(rocblaslt_handle                   handle
         }
         updateTensileData(prob, *data);
 #ifndef HIPBLASLT_USE_ROCROLLER
-        const bool routedToRocRoller = useRocRoller(handle, prob);
         if(routedToRocRoller)
             ignoreUniformSummationOrder(data->problem);
 #endif
@@ -6386,8 +6401,9 @@ rocblaslt_status runContractionProblem(rocblaslt_handle                   handle
         rocblaslt_matmul_algo reselectedAlgo;
         int                   atQueryHint = -1;
 
-        algo = reselectForAdaptiveHint(
-            handle, algo, prob, gemmData, *library, *hardware, reselectedAlgo, &atQueryHint);
+        if(!routedToRocRoller)
+            algo = reselectForAdaptiveHint(
+                handle, algo, prob, gemmData, *library, *hardware, reselectedAlgo, &atQueryHint);
 
         // Get the values of static member variables flush and rotating size from UserClientArguments
         UserClientArguments ClientArguments;
@@ -8244,23 +8260,6 @@ std::vector<std::shared_ptr<TensileLite::ContractionSolution>>
     return solutions;
 }
 
-// The fields a checked-in rocRoller kernel declares in its custom.config.
-static RocRollerKernelFields rocRollerKernelFields(const TensileLite::ContractionSolution& solution)
-{
-    const auto&           kernel = solution.customKernel;
-    RocRollerKernelFields fields;
-    fields.tileM   = static_cast<int>(kernel.macrotile.x);
-    fields.tileN   = static_cast<int>(kernel.macrotile.y);
-    fields.tileK   = static_cast<int>(kernel.macrotile.z);
-    fields.unroll  = kernel.unroll;
-    fields.streamK = kernel.workspaceType == TensileLite::CustomWorkspaceType::RocRollerStreamK;
-    fields.workgroupMapping
-        = std::any_of(kernel.args.begin(), kernel.args.end(), [](auto const& arg) {
-              return arg.semantic == TensileLite::CustomArgSemantic::RR_WorkgroupMapping;
-          });
-    return fields;
-}
-
 static const char* rocRollerWalkStopReason(RocRollerWalkStop stop)
 {
     switch(stop)
@@ -8293,8 +8292,11 @@ static rocblaslt_status
                                   int                                requestedAlgoCount,
                                   rocblaslt_matmul_heuristic_result  heuristicResultsArray[],
                                   size_t                             maxWorkSpaceBytes,
-                                  int*                               returnAlgoCount)
+                                  int*                               returnAlgoCount,
+                                  bool*                              layoutRuledOut)
 {
+    if(layoutRuledOut)
+        *layoutRuledOut = false;
     std::vector<RocRollerSelectedTile> ranked;
     rocblaslt_status                   status = rankRocRollerSelectedTiles(prob, ranked);
     if(status != rocblaslt_status_success)
@@ -8318,6 +8320,7 @@ static rocblaslt_status
     // serve; the match would refuse it anyway.
     std::vector<std::shared_ptr<TensileLite::ContractionSolution>> kernels;
     std::vector<RocRollerKernelFields>                             fields;
+    std::vector<RocRollerKernelFields>                             layoutRejected;
     {
         std::lock_guard<std::mutex> lock(library->solutionsGuard);
         for(auto const& entry : library->solutions)
@@ -8326,10 +8329,13 @@ static rocblaslt_status
             if(!solution || solution->customKernel.name.empty() || solution->customKernel.generated
                || solution->customKernel.unroll <= 0)
                 continue;
-            if(!mxScaleLayoutFits(needed, *solution))
-                continue;
             if(!rocRollerKernelAccepts(*solution, tensileProblem, *hardware))
                 continue;
+            if(!mxScaleLayoutFits(needed, *solution))
+            {
+                layoutRejected.push_back(rocRollerKernelFields(*solution));
+                continue;
+            }
             kernels.push_back(solution);
             fields.push_back(rocRollerKernelFields(*solution));
         }
@@ -8364,6 +8370,16 @@ static rocblaslt_status
                 << (tile.workgroupMapping && !tile.streamK ? " wgm" : "") << ")";
         }
         log_info(__func__, msg.str());
+    }
+
+    // A tile whose only kernel was dropped by the MX scale layout is #14625's
+    // layout mismatch, not an empty algorithm list. The caller then skips the
+    // size-independent top-up and the log carries the same message.
+    if(layoutRuledOut && walk.stop == RocRollerWalkStop::NoKernel && walk.stopTile < ranked.size()
+       && rocRollerLayoutRejectionCoversTile(layoutRejected, ranked[walk.stopTile]))
+    {
+        *layoutRuledOut = true;
+        log_info(__func__, rocblaslt_mx_scale_mismatch_message(needed));
     }
 
     std::vector<std::shared_ptr<TensileLite::ContractionSolution>> chosen;
@@ -8401,7 +8417,7 @@ static rocblaslt_status rocRollerSelectedSolutionsVector(
     std::vector<rocblaslt_matmul_heuristic_result> results(requestedAlgoCount);
     int                                            returnAlgoCount = 0;
     const rocblaslt_status                         status          = getRocRollerSelectedSolutions(
-        handle, prob, requestedAlgoCount, results.data(), maxWorkSpaceBytes, &returnAlgoCount);
+        handle, prob, requestedAlgoCount, results.data(), maxWorkSpaceBytes, &returnAlgoCount, nullptr);
     if(status != rocblaslt_status_success)
         return status;
 
@@ -8440,7 +8456,8 @@ rocblaslt_status getBestSolutions(RocblasltContractionProblem const&  prob,
                                    requestedAlgoCount,
                                    heuristicResultsArray,
                                    maxWorkSpaceBytes,
-                                   returnAlgoCount);
+                                   returnAlgoCount,
+                                   layoutRuledOut);
 #endif
     std::shared_ptr<TensileLite::MasterSolutionLibrary<TensileLite::ContractionProblemGemm>>
                                            library;
@@ -8684,7 +8701,7 @@ rocblaslt_status getAllSolutions(RocblasltContractionProblem&                   
         std::vector<rocblaslt_matmul_heuristic_result> ranked(160);
         int                                            count = 0;
         rocblaslt_status                               status = getRocRollerSelectedSolutions(
-            handle, prob, -1, ranked.data(), maxWorkSpaceBytes, &count);
+            handle, prob, -1, ranked.data(), maxWorkSpaceBytes, &count, nullptr);
         if(status != rocblaslt_status_success)
             return status;
         ranked.resize(static_cast<size_t>(std::max(count, 0)));
