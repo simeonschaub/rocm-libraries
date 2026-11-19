@@ -6268,8 +6268,8 @@ namespace TensileLite
 
         StreamKSettings launch;
         launch.tileProcessingStrategy = TileProcessingStrategy::StreamK;
-        launch.workAssignment = WorkAssignment::StaticGrid;
-        launch.effectiveWorkAssignment = WorkAssignment::StaticGrid;
+        launch.workAssignment = StreamK::WorkAssignment::StaticGrid;
+        launch.effectiveWorkAssignment = StreamK::WorkAssignment::StaticGrid;
         launch.argsVersion = 2;
         launch.reduction = getSKReduction(problem, hardware);
         launch.smCountTarget = problem.getParams().smCountTarget();
@@ -6499,7 +6499,7 @@ namespace TensileLite
         sk.tileProcessingStrategy = TileProcessingStrategy::StreamK;
         sk.workAssignment = sizeMapping.workAssignment;
         sk.effectiveWorkAssignment = sizeMapping.hasDynamicAssignment() || effectiveDynamic
-                                        ? WorkAssignment::DynamicWorkQueue : WorkAssignment::StaticGrid;
+                                        ? StreamK::WorkAssignment::DynamicWorkQueue : StreamK::WorkAssignment::StaticGrid;
         sk.totalTiles = tiles;
         sk.argsVersion = internalArgsSupport.persistentLoopArgsVersion;
 
@@ -7098,7 +7098,7 @@ namespace TensileLite
             return;
 
         // Dynamic work queue currently processes full tiles only
-        if(launch.effectiveWorkAssignment == WorkAssignment::DynamicWorkQueue)
+        if(launch.effectiveWorkAssignment == StreamK::WorkAssignment::DynamicWorkQueue)
             return;
 
         const std::string reason = uniformSummationOrderLaunchObstacle(
