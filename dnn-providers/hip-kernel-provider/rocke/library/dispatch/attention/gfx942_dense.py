@@ -306,6 +306,16 @@ def _make_spec(
         causal_diag_split=diag_split,
         window_wave_skip=window_wave_skip,
         **dense_paged_fields(req),
+        kv_storage_dtype="fp8e4m3" if req.use_fp8 else None,
+        # fp8 opts out of the conflict-free transposed V path explicitly rather
+        # than leaving it to policy. default_use_cfvst resolves ON at D128, and
+        # the sync-dequant loader cannot fill a V^T V_lds, so a D128 fp8 request
+        # would be refused. use_cfvst is a tuning axis, so a free knob walk finds
+        # the legal point on its own, but a request that pins any knob does not
+        # walk it and gets the refusal instead. Pinning it here makes the shipped
+        # fp8 spec legal for every caller. Emission-neutral at D64, where policy
+        # already resolves it off.
+        use_cfvst=False if req.use_fp8 else None,
     )
 
 
@@ -344,6 +354,20 @@ def _make_gfx942_attention_dense_candidate() -> KernelCandidate:
         # Dense: causal (top-left or bottom-right), sliding-window and sinks (alone
         # or combined), optional LSE output, paged K/V. Head size stays out: D64/D128
         # coverage is ``supports_attention_dense``'s call.
+        #
+        # fp8 is advertised here only, matching gfx950, where it is grid-only
+        # because the spec rejects persistent and paged. The ingestor-grid
+        # candidates below stay without it.
+        #
+        # Advertising it for BOTH head sizes is deliberate. What fp8 cannot
+        # serve is the conflict-free transposed V path, whose V^T layout the
+        # sync-dequant loader cannot fill, and that is a knob point rather than
+        # a head size. tuned_base_spec does prefer persistent + cfvst at D128,
+        # but _supports refuses that point under fp8, so the knob walk lands on
+        # the non-persistent, cfvst-off D128 spec, which the loader fills fine.
+        # Gating this on head size instead would drop that working shape. Every
+        # per-shape fp8 refusal stays supports_attention_dense's call, as with
+        # head size.
         features=frozenset(
             {
                 "causal",
@@ -352,6 +376,7 @@ def _make_gfx942_attention_dense_candidate() -> KernelCandidate:
                 "sinks",
                 "lse",
                 "layout_paged",
+                "fp8",
             }
         ),
         # tuned_base_spec picks these from the dtype, head size, work count and window.
