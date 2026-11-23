@@ -6026,9 +6026,9 @@ static bool readsStreamKFlags(const TensileLite::ContractionSolution& solution)
     // == false. Its Stream-K flags live on customKernel: one int per workgroup,
     // zeroed before and after each launch, private to the stream. The GSU
     // region is shared across streams.
-    if(solution.customKernel.workspaceType
-           == TensileLite::CustomWorkspaceType::RocRollerStreamK
-       && solution.handwrittenCustomKernel())
+    // Same predicate as ContractionSolution::usesRocRollerStreamK and the
+    // client synchronizer scan: grid, workspace type, or any RR_SK kernarg.
+    if(solution.usesRocRollerStreamK())
         return true;
 
     // Amax uses Synchronizer for its counter, so retain its GSU region.

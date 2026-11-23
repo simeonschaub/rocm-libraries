@@ -94,7 +94,7 @@ namespace TensileLite
             bool const  partialReduction = sm.requiresPartialReduction();
             bool const  customStreamK    = ck.workspaceType == CustomWorkspaceType::StreamK
                                         || ck.workspaceType == CustomWorkspaceType::StreamKWithReduction
-                                        || ck.workspaceType == CustomWorkspaceType::RocRollerStreamK;
+                                        || solution->usesRocRollerStreamK();
             bool const  mbsk             = sm.globalAccumulation == 3 || sm.adaptiveGemmGSUA == 1;
             bool const  handwritten      = !ck.name.empty() && !ck.generated;
             bool const  customArg
@@ -102,9 +102,7 @@ namespace TensileLite
                   && std::any_of(ck.args.begin(), ck.args.end(), [](CustomArgDefinition const& a) {
                          return a.semantic == CustomArgSemantic::AddressFlags
                                 || a.semantic == CustomArgSemantic::AddressSynchronizer
-                                || a.semantic == CustomArgSemantic::AmaxSync
-                                // rocRoller's flag region is the Synchronizer too.
-                                || a.semantic == CustomArgSemantic::RR_SKAddressFlags;
+                                || a.semantic == CustomArgSemantic::AmaxSync;
                      });
             m_mayUseSynchronizer = partialReduction || customStreamK || mbsk || customArg
                                    || solution->problemType.outputAmaxD

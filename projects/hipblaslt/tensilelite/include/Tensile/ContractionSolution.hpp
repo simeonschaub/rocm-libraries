@@ -1380,6 +1380,13 @@ namespace TensileLite
         // for problem would run data-parallel tiles, which the kernel cannot do
         // (see rocRollerStreamKHasDataParallelTiles in RocRollerStreamKKernargs.hpp).
         // The launch throws in that case; selection must refuse the solution.
+        //
+        // The grid origami picks depends on problem.workspaceSize(): a workspace
+        // too small for the partial tiles forces the grid to the tile count.
+        // A support check with a small workspace can therefore report no
+        // data-parallel tiles, and a later launch of the same problem with a
+        // larger workspace can throw. The check fails safe. It is not a
+        // function of the problem sizes alone.
         bool rocRollerStreamKHasDataParallelTiles(Problem const&  problem,
                                                   Hardware const& hardware) const;
 

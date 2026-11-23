@@ -139,6 +139,26 @@ def test_assign_custom_kernel_params_split_k_grid_is_accepted(grid):
     # tile-count grid has to be rejected here too rather than at launch.
     {"GlobalSplitU": 16, "TileProcessingStrategy": "StreamK"},
 ])
+def test_assign_custom_kernel_params_rocroller_streamk_rejects_gsu():
+    # The kernel does not implement GlobalSplitU. A TilesXY grid already
+    # raises; RocRollerStreamK must too, or the launch returns success with
+    # D unwritten.
+    state = _ck_state(GlobalSplitU=4, GlobalSplitUAlgorithm="MultipleBuffer")
+    state["CustomKernel"]["grid"] = ["RocRollerStreamK", "One", "One"]
+    state["CustomKernel"]["workspaceType"] = "RocRollerStreamK"
+    state["CustomKernel"]["args"] = [{"semantic": "RR_SKAddressFlags"}]
+    with pytest.raises(RuntimeError, match="one GSU slice per tile"):
+        Solution._assignCustomKernelParameters(state)
+
+
+def test_assign_custom_kernel_params_rocroller_streamk_pieces_must_agree():
+    state = _ck_state()
+    state["CustomKernel"]["args"] = [{"semantic": "RR_SKAddressFlags"}]
+    state["CustomKernel"]["workspaceType"] = "None"
+    with pytest.raises(RuntimeError, match="mixes rocRoller Stream-K"):
+        Solution._assignCustomKernelParameters(state)
+
+
 def test_assign_custom_kernel_params_split_k_without_gsu_grid_raises(over):
     # A split-K kernel reduces into D only once every GSU slice has arrived, so a
     # grid without a GSU term would launch one slice and leave D unwritten.

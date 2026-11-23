@@ -6434,6 +6434,8 @@ namespace TensileLite
             case CustomArgSemantic::RR_SKMagicShiftsIters:
             case CustomArgSemantic::RR_SKMagicMultipleNumTilesN:
             case CustomArgSemantic::RR_SKMagicShiftsNumTilesN:
+            case CustomArgSemantic::RR_SKAddressPartials:
+            case CustomArgSemantic::RR_SKAddressFlags:
                 return true;
             default:
                 break;
@@ -6695,6 +6697,18 @@ namespace TensileLite
         req.occupancy              = static_cast<int>(customKernel.occupancy);
         req.workspaceSize          = problem.workspaceSize();
         req.workspaceSizePerElemC  = sizeMapping.workspaceSizePerElemC;
+
+        // The kernargs below count tiles in M and N only. The grid folds batch
+        // in, so the two agree only for a single batch. Selection also emits
+        // BatchSizeEqual(1) for RR_GEMM_ kernels; this refuses a launch that
+        // reaches here without that predicate.
+        for(size_t extent : req.batch)
+        {
+            if(extent != 1)
+                throw std::runtime_error(
+                    "rocRoller Stream-K kernels launch a single batch; the grid "
+                    "counts every batch and the kernargs do not");
+        }
 
         hip::HipAMDGPU const* hipAMDGPU = dynamic_cast<hip::HipAMDGPU const*>(&hardware);
         req.hasAnalyticalHardware
