@@ -74,9 +74,9 @@ diff; reformat churn mixed into a functional change.
   shows it or the flag is OFF at both. An install into a component the artifact does not request (hipkernelprovider `share/doc`) is
   `SUGGESTION`.
 - A CTest entry whose projected per-shard time (CI baseline plus the change's measured delta) exceeds its tier timeout, or a job whose
-  summed entry times plus the delta share exceed its `timeout_minutes`, is `BLOCKING` when presubmit runs the entry (run-all `quick`,
-  scoped `standard`) on a presubmit family, a case behind a flag that main turns ON included; `IMPORTANT` with only nightly
-  (`comprehensive`) exposure.
+  summed entry times plus the delta share exceed its `timeout_minutes`, is `BLOCKING` when a presubmit run executes the entry —
+  whatever tier its job log shows; breadth (run-all vs. scoped) does not decide tier — on a presubmit family, a case behind a flag
+  that main turns ON included; `IMPORTANT` with only a schedule (`comprehensive`) exposure.
 - A Windows path over 259 characters that a test or loader passes to a file API is `BLOCKING` when a required set provably fails to
   load, else `IMPORTANT`; a caller that uses a `\\?\` path is exempt.
 - Documentation is prose that no tool, build, install, packaging or CI step reads:
