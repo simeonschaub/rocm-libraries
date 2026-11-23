@@ -41,8 +41,8 @@ STREAMK_ARGS = {
     "RR_SKNumSKTilesPerWG",
     "RR_SKNumDPTiles",
     "RR_SKNumDPTilesPerWG",
-    "RR_SKAddressPartials",
-    "RR_SKAddressFlags",
+    "AddressWorkspace",
+    "AddressSynchronizer",
 }
 # The fields the launch reads from the CustomKernel block.
 LAUNCH_FIELDS = ("grid", "workspaceType", "occupancy", "macrotile")

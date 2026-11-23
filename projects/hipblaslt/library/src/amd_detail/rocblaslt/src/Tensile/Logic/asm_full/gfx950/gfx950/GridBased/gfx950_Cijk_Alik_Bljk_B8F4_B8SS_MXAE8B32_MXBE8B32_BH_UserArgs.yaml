@@ -2744,7 +2744,7 @@ Solutions:
     - {type: int64, semantic: SizeFree1}
     - {type: int64, semantic: StrideD0}
     - {type: address, semantic: AddressD}
-    - {type: address, semantic: RR_SKAddressPartials}
+    - {type: address, semantic: AddressWorkspace}
     - {type: int64, semantic: StrideA0}
     - {type: address, semantic: AddressA}
     - {type: int64, semantic: SizeFree0}
@@ -2754,7 +2754,7 @@ Solutions:
     - {type: address, semantic: AddressMXScaleA}
     - {type: int64, semantic: StrideScaleB0}
     - {type: address, semantic: AddressMXScaleB}
-    - {type: address, semantic: RR_SKAddressFlags}
+    - {type: address, semantic: AddressSynchronizer}
     - {type: uint32, semantic: RR_SKNumDPTilesPerWG}
     - {type: uint32, semantic: RR_SKNumDPTiles}
     grid: [RocRollerStreamK, One, One]
@@ -2837,8 +2837,8 @@ Solutions:
     - {type: address, semantic: AddressMXScaleA}
     - {type: int64, semantic: StrideScaleB0}
     - {type: address, semantic: AddressMXScaleB}
-    - {type: address, semantic: RR_SKAddressPartials}
-    - {type: address, semantic: RR_SKAddressFlags}
+    - {type: address, semantic: AddressWorkspace}
+    - {type: address, semantic: AddressSynchronizer}
     - {type: int64, semantic: StrideD0}
     - {type: address, semantic: AddressD}
     - {type: uint32, semantic: RR_SKNumDPTilesPerWG}
@@ -2916,7 +2916,7 @@ Solutions:
     - {type: int64, semantic: SizeFree1}
     - {type: int64, semantic: StrideD0}
     - {type: address, semantic: AddressD}
-    - {type: address, semantic: RR_SKAddressPartials}
+    - {type: address, semantic: AddressWorkspace}
     - {type: int64, semantic: StrideA0}
     - {type: address, semantic: AddressA}
     - {type: int64, semantic: SizeFree0}
@@ -2926,7 +2926,7 @@ Solutions:
     - {type: address, semantic: AddressMXScaleA}
     - {type: int64, semantic: StrideScaleB0}
     - {type: address, semantic: AddressMXScaleB}
-    - {type: address, semantic: RR_SKAddressFlags}
+    - {type: address, semantic: AddressSynchronizer}
     - {type: uint32, semantic: RR_SKNumDPTilesPerWG}
     - {type: uint32, semantic: RR_SKNumDPTiles}
     grid: [RocRollerStreamK, One, One]
@@ -3002,7 +3002,7 @@ Solutions:
     - {type: int64, semantic: SizeFree1}
     - {type: int64, semantic: StrideD0}
     - {type: address, semantic: AddressD}
-    - {type: address, semantic: RR_SKAddressPartials}
+    - {type: address, semantic: AddressWorkspace}
     - {type: int64, semantic: StrideA0}
     - {type: address, semantic: AddressA}
     - {type: int64, semantic: SizeFree0}
@@ -3012,7 +3012,7 @@ Solutions:
     - {type: address, semantic: AddressMXScaleA}
     - {type: int64, semantic: StrideScaleB0}
     - {type: address, semantic: AddressMXScaleB}
-    - {type: address, semantic: RR_SKAddressFlags}
+    - {type: address, semantic: AddressSynchronizer}
     - {type: uint32, semantic: RR_SKNumDPTilesPerWG}
     - {type: uint32, semantic: RR_SKNumDPTiles}
     grid: [RocRollerStreamK, One, One]
@@ -3095,8 +3095,8 @@ Solutions:
     - {type: address, semantic: AddressMXScaleA}
     - {type: int64, semantic: StrideScaleB0}
     - {type: address, semantic: AddressMXScaleB}
-    - {type: address, semantic: RR_SKAddressPartials}
-    - {type: address, semantic: RR_SKAddressFlags}
+    - {type: address, semantic: AddressWorkspace}
+    - {type: address, semantic: AddressSynchronizer}
     - {type: int64, semantic: StrideD0}
     - {type: address, semantic: AddressD}
     - {type: uint32, semantic: RR_SKNumDPTilesPerWG}
@@ -3181,8 +3181,8 @@ Solutions:
     - {type: address, semantic: AddressMXScaleA}
     - {type: int64, semantic: StrideScaleB0}
     - {type: address, semantic: AddressMXScaleB}
-    - {type: address, semantic: RR_SKAddressPartials}
-    - {type: address, semantic: RR_SKAddressFlags}
+    - {type: address, semantic: AddressWorkspace}
+    - {type: address, semantic: AddressSynchronizer}
     - {type: int64, semantic: StrideD0}
     - {type: address, semantic: AddressD}
     - {type: uint32, semantic: RR_SKNumDPTilesPerWG}
@@ -3260,7 +3260,7 @@ Solutions:
     - {type: int64, semantic: SizeFree1}
     - {type: int64, semantic: StrideD0}
     - {type: address, semantic: AddressD}
-    - {type: address, semantic: RR_SKAddressPartials}
+    - {type: address, semantic: AddressWorkspace}
     - {type: int64, semantic: StrideA0}
     - {type: address, semantic: AddressA}
     - {type: int64, semantic: SizeFree0}
@@ -3270,7 +3270,7 @@ Solutions:
     - {type: address, semantic: AddressMXScaleA}
     - {type: int64, semantic: StrideScaleB0}
     - {type: address, semantic: AddressMXScaleB}
-    - {type: address, semantic: RR_SKAddressFlags}
+    - {type: address, semantic: AddressSynchronizer}
     - {type: uint32, semantic: RR_SKNumDPTilesPerWG}
     - {type: uint32, semantic: RR_SKNumDPTiles}
     grid: [RocRollerStreamK, One, One]
@@ -3346,7 +3346,7 @@ Solutions:
     - {type: int64, semantic: SizeFree1}
     - {type: int64, semantic: StrideD0}
     - {type: address, semantic: AddressD}
-    - {type: address, semantic: RR_SKAddressPartials}
+    - {type: address, semantic: AddressWorkspace}
     - {type: int64, semantic: StrideA0}
     - {type: address, semantic: AddressA}
     - {type: int64, semantic: SizeFree0}
@@ -3356,7 +3356,7 @@ Solutions:
     - {type: address, semantic: AddressMXScaleA}
     - {type: int64, semantic: StrideScaleB0}
     - {type: address, semantic: AddressMXScaleB}
-    - {type: address, semantic: RR_SKAddressFlags}
+    - {type: address, semantic: AddressSynchronizer}
     - {type: uint32, semantic: RR_SKNumDPTilesPerWG}
     - {type: uint32, semantic: RR_SKNumDPTiles}
     grid: [RocRollerStreamK, One, One]
@@ -3432,7 +3432,7 @@ Solutions:
     - {type: int64, semantic: SizeFree1}
     - {type: int64, semantic: StrideD0}
     - {type: address, semantic: AddressD}
-    - {type: address, semantic: RR_SKAddressPartials}
+    - {type: address, semantic: AddressWorkspace}
     - {type: int64, semantic: StrideA0}
     - {type: address, semantic: AddressA}
     - {type: int64, semantic: SizeFree0}
@@ -3442,7 +3442,7 @@ Solutions:
     - {type: address, semantic: AddressMXScaleA}
     - {type: int64, semantic: StrideScaleB0}
     - {type: address, semantic: AddressMXScaleB}
-    - {type: address, semantic: RR_SKAddressFlags}
+    - {type: address, semantic: AddressSynchronizer}
     - {type: uint32, semantic: RR_SKNumDPTilesPerWG}
     - {type: uint32, semantic: RR_SKNumDPTiles}
     grid: [RocRollerStreamK, One, One]
