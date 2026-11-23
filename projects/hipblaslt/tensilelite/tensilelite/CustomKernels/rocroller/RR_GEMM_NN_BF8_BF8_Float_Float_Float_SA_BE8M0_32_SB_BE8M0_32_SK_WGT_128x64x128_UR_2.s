@@ -6604,7 +6604,7 @@ custom.config:
             { type: int64, semantic: SizeFree1 },
             { type: int64, semantic: StrideD0 },
             { type: address, semantic: AddressD },
-            { type: address, semantic: RR_SKAddressPartials },
+            { type: address, semantic: AddressWorkspace },
             { type: int64, semantic: StrideA0 },
             { type: address, semantic: AddressA },
             { type: int64, semantic: StrideB0 },
@@ -6614,7 +6614,7 @@ custom.config:
             { type: int64, semantic: SizeSumScaleA },
             { type: int64, semantic: StrideScaleB0 },
             { type: address, semantic: AddressMXScaleB },
-            { type: address, semantic: RR_SKAddressFlags },
+            { type: address, semantic: AddressSynchronizer },
             { type: uint32, semantic: RR_SKNumDPTilesPerWG },
             { type: uint32, semantic: RR_SKNumDPTiles } ]
     macrotile: [128, 64, 128]
