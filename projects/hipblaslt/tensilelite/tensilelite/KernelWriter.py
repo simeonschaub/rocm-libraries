@@ -7129,6 +7129,9 @@ class KernelWriter(PersistentKernelState, StreamKKernelState, metaclass=abc.ABCM
         "ReuseAcrossPersistent tail-folds the K remainder into the main loop and has no tail loop"
       self.states.inTailLoop = True
       module.addComment2("Tail Loop")
+      papTailBorrowed = self.papTailBorrowedPayloadRanges(kernel)
+      for start, size in papTailBorrowed:
+        self.vgprPool.add(start, size, "PAP tail borrows retained PLR operands")
 
       # F32XEmu case, need to disable index transpose and generate transpose code for wider local read
       # Disable doFullPackCodePrefetchas.
@@ -7631,6 +7634,8 @@ class KernelWriter(PersistentKernelState, StreamKKernelState, metaclass=abc.ABCM
 
       # tail: close
       self.states.inTailLoop = False
+      for start, size in papTailBorrowed:
+        self.vgprPool.remove(start, size, "PAP retained PLR operands return from tail")
 
       # FIXME: Add back.
       if mEnd == 1:
@@ -10489,7 +10494,8 @@ class KernelWriter(PersistentKernelState, StreamKKernelState, metaclass=abc.ABCM
       # the conservative local-address margin for the retained PLR payload.
       if (self.papTdmSupportsShadowAddressPair(kernel, tensorParametersA, tensorParametersB)
           and not isStreamKSpatialCluster(kernel)
-          and kernel["NoTailLoop"] and not kernel["HalfPLR"]
+          and (kernel["NoTailLoop"] or self.papPgr2RuntimeTailSplit(kernel))
+          and not kernel["HalfPLR"]
           and max(vgprIdx, self.states.c.numVgprValu) + 18 <= self.states.regCaps["MaxVgpr"]):
         vgprIdx = max(vgprIdx, self.states.c.numVgprValu)
         self.states.papNextTileVgpr = vgprIdx
