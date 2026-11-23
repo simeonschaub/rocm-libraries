@@ -146,14 +146,14 @@ def test_assign_custom_kernel_params_rocroller_streamk_rejects_gsu():
     state = _ck_state(GlobalSplitU=4, GlobalSplitUAlgorithm="MultipleBuffer")
     state["CustomKernel"]["grid"] = ["RocRollerStreamK", "One", "One"]
     state["CustomKernel"]["workspaceType"] = "RocRollerStreamK"
-    state["CustomKernel"]["args"] = [{"semantic": "RR_SKAddressFlags"}]
+    state["CustomKernel"]["args"] = [{"semantic": "RR_SKNumWGs"}]
     with pytest.raises(RuntimeError, match="one GSU slice per tile"):
         Solution._assignCustomKernelParameters(state)
 
 
 def test_assign_custom_kernel_params_rocroller_streamk_pieces_must_agree():
     state = _ck_state()
-    state["CustomKernel"]["args"] = [{"semantic": "RR_SKAddressFlags"}]
+    state["CustomKernel"]["args"] = [{"semantic": "RR_SKNumWGs"}]
     state["CustomKernel"]["workspaceType"] = "None"
     with pytest.raises(RuntimeError, match="mixes rocRoller Stream-K"):
         Solution._assignCustomKernelParameters(state)

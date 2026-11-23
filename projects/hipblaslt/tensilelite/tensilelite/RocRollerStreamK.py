@@ -52,10 +52,14 @@ SK_ROLE_ORDER = (
 )
 
 # The two scratch pointers. Kept out of SK_ROLE_ORDER because they are
-# addresses the launcher binds, not values it computes.
+# addresses the launcher binds, not values it computes. They are the same
+# slots as a Tensile workspace and synchronizer: partial tiles in
+# AddressWorkspace, and the per-workgroup flag region in AddressSynchronizer.
+# AddressFlags is not used. That semantic stores a null pointer when the
+# reduction is parallel, and this kernel always reads the flag region.
 SK_POINTER_ROLES = (
-    "RR_SKAddressPartials",
-    "RR_SKAddressFlags",
+    "AddressWorkspace",
+    "AddressSynchronizer",
 )
 
 # Stream-K kernarg names rocRoller emits without a numeric suffix. Unlike
@@ -80,15 +84,12 @@ STABLE_NAME_TO_SEMANTIC = {
     # SCRATCH_ZeroedBeforeAndAfter is the Stream-K flag region: zero on
     # entry, and the kernel restores it to zero before it exits.
     #
-    # These deliberately do NOT reuse Tensile's AddressWorkspace /
-    # AddressFlags. AddressFlags appends a null pointer whenever the
-    # resolved reduction is parallel, and the region it points at is only
-    # the private per-stream Stream-K block when sizeMapping.isStreamK()
-    # -- which is false for a handwritten custom kernel, so it would
-    # silently hand over the GSU region that is shared across streams.
-    # The dedicated semantics bind unconditionally and correctly.
-    "SCRATCH_None": "RR_SKAddressPartials",
-    "SCRATCH_ZeroedBeforeAndAfter": "RR_SKAddressFlags",
+    # AddressWorkspace is the partial-tile scratch (inputs.ws).
+    # AddressSynchronizer is the flag region and is always the real pointer.
+    # AddressFlags is the other flag semantic, and it stores null when the
+    # reduction is parallel, which this kernel cannot accept.
+    "SCRATCH_None": "AddressWorkspace",
+    "SCRATCH_ZeroedBeforeAndAfter": "AddressSynchronizer",
 }
 
 

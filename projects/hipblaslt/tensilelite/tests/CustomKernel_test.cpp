@@ -619,7 +619,7 @@ namespace
             }
             else
                 configureProbeKernel(
-                    solution, {CustomArgType::address, CustomArgSemantic::RR_SKAddressPartials});
+                    solution, {CustomArgType::address, CustomArgSemantic::AddressWorkspace});
             solution.customKernel.macrotile = TensileLite::dim3(tile, tile, 128);
             solution.customKernel.grid
                 = {CustomGridSize::RocRollerStreamKGrid, CustomGridSize::One, CustomGridSize::One};

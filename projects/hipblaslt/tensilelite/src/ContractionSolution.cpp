@@ -3745,19 +3745,11 @@ namespace TensileLite
                 // ceil(size / tile) as int64. Every other RR_* kernarg is 32-bit;
                 // appendCustomType would follow a 32-bit declaration and truncate.
                 case CustomArgSemantic::RR_NumTilesM:
-                case CustomArgSemantic::RR_NumTilesN:
-                {
-                    if(arg.type != CustomArgType::int64 && arg.type != CustomArgType::uint64)
-                        throw std::runtime_error(concatenate(
-                            toString(arg.semantic),
-                            " must be a 64-bit integer kernarg, declared ",
-                            toString(arg.type)));
-                    if(arg.semantic == CustomArgSemantic::RR_NumTilesM)
-                        rv.args.template append<int64_t>("RR_NumTilesM", wgmKernarg().numTilesM);
-                    else
-                        rv.args.template append<int64_t>("RR_NumTilesN", wgmKernarg().numTilesN);
+                    rv.args.appendCustomType("RR_NumTilesM", wgmKernarg().numTilesM, arg.type);
                     break;
-                }
+                case CustomArgSemantic::RR_NumTilesN:
+                    rv.args.appendCustomType("RR_NumTilesN", wgmKernarg().numTilesN, arg.type);
+                    break;
 
                 // rocRoller Stream-K. The work decomposition is hoisted into
                 // kernargs; see RocRollerStreamKKernargs.hpp.
@@ -3791,16 +3783,6 @@ namespace TensileLite
                 case CustomArgSemantic::RR_SKMagicShiftsNumTilesN:
                     rv.args.appendCustomType("RR_SKMagicShiftsNumTilesN", skKernarg().magicShiftsNumTilesN, arg.type);
                     break;
-                case CustomArgSemantic::RR_SKAddressPartials:
-                    rv.args.template append<void const*>("RR_SKAddressPartials", inputs.ws);
-                    break;
-                case CustomArgSemantic::RR_SKAddressFlags:
-                    // Unconditionally the real pointer. Tensile's own AddressFlags
-                    // case nulls it for parallel reduction; rocRoller's kernel
-                    // always dereferences it, so that rule must not be copied.
-                    rv.args.template append<void*>("RR_SKAddressFlags", inputs.Synchronizer);
-                    break;
-
                 default:
                     throw std::runtime_error(concatenate("Invalid kernel argument type: ", arg));
             }
@@ -6434,8 +6416,6 @@ namespace TensileLite
             case CustomArgSemantic::RR_SKMagicShiftsIters:
             case CustomArgSemantic::RR_SKMagicMultipleNumTilesN:
             case CustomArgSemantic::RR_SKMagicShiftsNumTilesN:
-            case CustomArgSemantic::RR_SKAddressPartials:
-            case CustomArgSemantic::RR_SKAddressFlags:
                 return true;
             default:
                 break;

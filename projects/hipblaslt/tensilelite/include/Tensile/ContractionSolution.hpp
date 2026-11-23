@@ -193,9 +193,9 @@ namespace TensileLite
         X_MACRO(DeltaPeerD) \
         /* rocRoller Stream-K kernargs. rocRoller hoists its whole work
            decomposition into kernargs; these are the host-evaluated values of
-           the .expression trees in the kernel's .amdgpu_metadata. The two
-           address slots are the partial-tile scratch and the per-workgroup
-           flag region. See RocRollerStreamKKernargs.hpp. */ \
+           the .expression trees in the kernel's .amdgpu_metadata. The partial
+           tile scratch is AddressWorkspace and the flag region is
+           AddressSynchronizer. See RocRollerStreamKKernargs.hpp. */ \
         X_MACRO(RR_SKNumTilesN) \
         X_MACRO(RR_SKNumWGs) \
         X_MACRO(RR_SKNumSKTiles) \
@@ -206,8 +206,6 @@ namespace TensileLite
         X_MACRO(RR_SKMagicShiftsIters) \
         X_MACRO(RR_SKMagicMultipleNumTilesN) \
         X_MACRO(RR_SKMagicShiftsNumTilesN) \
-        X_MACRO(RR_SKAddressPartials) \
-        X_MACRO(RR_SKAddressFlags) \
         /* int64 ceil(size/tile) for a non-power-of-two macrotile. Other RR_* kernargs are 32-bit. */ \
         X_MACRO(RR_NumTilesM) \
         X_MACRO(RR_NumTilesN) \
