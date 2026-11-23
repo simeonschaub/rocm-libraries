@@ -1429,7 +1429,13 @@ namespace TensileLite
         //    in the flag region. A wider grid writes into the next region.
         //    The input assembly and both clamps live in RocRollerStreamKGrid.hpp
         //    (assembleRocRollerStreamKGrid). See the definition.
+        // Defined in StreamK.cpp, next to the other Stream-K launch helpers.
         uint32_t rocRollerStreamKGrid(Problem const& problem, Hardware const& hardware) const;
+
+        // The grid a launch uses, or a throw when that grid would run
+        // data-parallel tiles. Memoised by the caller.
+        uint32_t rocRollerStreamKCheckedGrid(Problem const&  problem,
+                                             Hardware const& hardware) const;
 
         // Same StreamK grid / reduction solve() packs, including the
         // insufficient-workspace fall back to tree + grid==tiles.
