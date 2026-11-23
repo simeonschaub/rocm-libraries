@@ -93,6 +93,32 @@ Full documentation for MIOpen is available [here](https://rocm.docs.amd.com/proj
   these problems ahead of the AI heuristic, and Composable Kernel now accepts that instance for
   larger problems. The gfx950 rule is removed, so these problems use the AI heuristic. gfx942 is
   unchanged.
+* [BatchNorm] Fixed wrong `dx`, `dscale` and `dbias` from batch-norm backward training on NCHW
+  tensors when no saved statistics are supplied and H*W is at least 4096 but not a multiple of 4.
+  The kernel recomputed the mean and variance from a quarter of the elements. Also fixed the
+  batch-norm kernels ignoring `MIOPEN_USE_RNE_BFLOAT16=OFF` in BF16 conversion, NHWC forward
+  configurations that could not hold the split intermediate values for an odd `C / vectorsize`
+  (these are now rejected so a valid fallback runs), and backward spatial wave-width selection that
+  relied on a gfx10 device-name check.
+* [Conv] Fixed TF32 grouped CK convolutions (2D and 3D; forward, backward-data and
+  backward-weights) silently running as FP32, about 2 times slower, when the CK perf config came
+  from the user perf-db or from a heuristic instead of an in-process search. TF32 is now taken from
+  the problem, so the first run and later runs agree.
+* [Conv] Fixed `ConvHipConv` (hipconv v0.5.1) accepting layers it could not run correctly: layers
+  whose output size overflows 32 bits, and gfx950 and gfx1250 layers near the 2^31 tile, byte-span,
+  grid or dW-element limits, which wrote wrong output or failed to launch. Such layers are now
+  rejected so Find selects another solver, and the gfx950 `direct_wgrad` kernel no longer faults
+  when kh x kw x C/g exceeds `INT_MAX`.
+* [Conv] Fixed an out-of-bounds shared-memory read by idle threads in `ConvHipDirectFwd11x11`. The
+  results were not affected.
+* [CTC] Fixed out-of-bounds reads of the extended label sequence in the CTC loss kernels
+  (`CTCAlpha`, `CTCGradient`). The results were not affected.
+* Fixed `hipErrorContextIsDestroyed` (709) being left as the last HIP error when reduce sum and
+  prod, getitem backward, MultiMarginLoss forward or PReLU backward ran with handle profiling
+  enabled. Their invokers destroyed the profiling events twice.
+* [Build] Made the hipRTC kernel headers self-contained, so kernels that include `<type_traits>`,
+  `<utility>` or `<initializer_list>` compile on Windows runtime-only ROCm stacks that have no host
+  C++ standard library.
 
 ### Added
 * [Build] ROCm builds now enable `MIOPEN_ENABLE_HIPDNN_WRAPPER` by default. MIOpen is built as a
@@ -109,11 +135,14 @@ Full documentation for MIOpen is available [here](https://rocm.docs.amd.com/proj
 * [Conv] Added `ConvDirectDepthwiseFwd2D`, a direct 2D depthwise forward convolution solver for
   RDNA3, RDNA3.5 and RDNA4 (`gfx110X`, `gfx115X`, `gfx120X`). It covers fp16, bf16 and fp32 NCHW
   filters up to 7x7 and is selected through Find mode.
-* [Conv] Updated the bundled hipconv from v0.4.0 to v0.5.0. This adds `ConvHipConv` kernels for
+* [Conv] Updated the bundled hipconv from v0.4.0 to v0.5.1. This adds `ConvHipConv` kernels for
   gfx950 (including `direct_flex`, dilated layers, conv3d, more filter shapes and layers past
   2 GiB) and wider filter coverage on gfx1250, and fixes wrong backward-weights results from the
   gfx950 `direct_wgrad` kernel when built with clang 23. See
   [`src/hipconv/CHANGELOG.md`](src/hipconv/CHANGELOG.md) for the full list.
+* [Conv] Added RDNA wave32 support to `ConvDepthwiseBwdData2D` (gfx11 and gfx12). It ran only on
+  64-lane wavefronts, so stride-1 depthwise backward-data convolutions on those GPUs fell back to
+  `ConvDirectNaiveConvBwd` or grouped GEMM.
 
 ### Changed
 * [Conv] The gfx942/gfx950 two-tower config-selection heuristic now ranks a shipped precomputed
@@ -151,6 +180,10 @@ Full documentation for MIOpen is available [here](https://rocm.docs.amd.com/proj
   the kernels that support it, instead of staging fp32 and casting. With
   `MIOPEN_CONVOLUTION_ATTRIB_DETERMINISTIC` set, only kernels that accumulate into dW atomically
   are rejected.
+* [Conv] The shipped LGBM heuristic files `lgbm_rank.bin` and `lgbm_pcfg.bin` are now stored in
+  compact formats (2.0 MB and 6.1 MB, down from 5.5 MB and 46.6 MB), and the layer-2 perf-config
+  models of 13 solvers are retrained on current tuning data. Files in the old format no longer
+  load, so regenerate any custom system database directory that carries them.
 
 ### Removed
 * [Conv] Stopped shipping the per-solver `{arch}_{solver}_kernel_config_encoder.tn.model` files; the
@@ -175,6 +208,14 @@ Full documentation for MIOpen is available [here](https://rocm.docs.amd.com/proj
   their instance lists, applicability answers and default backward-weights configurations. The
   LGBM perf-config picker remembers its ranking per problem. `MIOPEN_DEBUG_CK_PROBLEM_CACHE=0`
   turns off the per-problem CK caches.
+* [Conv] Restored gfx1201 backward-data performance that the removal of invalid CK entries from the
+  gfx1201 system database (#12088) had cost. 117 split-K problems were re-tuned on gfx1201 with an
+  exhaustive search restricted to `ConvHipImplicitGemmGroupBwdXdlops`, and their find-db and
+  perf-db entries are back. Without them these problems ran a fallback such as `GemmBwdRest`, a
+  median 6.15 times slower and up to 69.5 times slower.
+* [Conv] Sped up split-K candidate selection for the CK grouped convolution solvers. One CK
+  instance list and a type-string index are kept per device-op type, instead of rebuilding the list
+  and scanning it for every kernel and split-K pair.
 
 ## MIOpen 3.6.2 for ROCm 10.2.0
 
