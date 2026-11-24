@@ -63,9 +63,12 @@ parameter repeated widens it. Examples:
   needs `seqlen_q == seqlen_k` (one projection is self-attention), `sbhd` needs a batch and a
   sequence above 1 (otherwise it aliases `bshd`), and `mla` needs `head_dim >= 128`. A window
   needs seqlen_q <= seqlen_k whatever the form. More queries than keys (cross attention) is
-  declared causal or not, its diagonal anchored top-left. Every other pairing, dropout, sink,
-  bias and padded included with any window and layout, is declared: whether an engine serves it
-  is the engine oracle's decision, not the declaration's.
+  declared causal or not, its diagonal anchored top-left, and the `cross_attention` archetype
+  anchors both masks. Every other pairing, dropout, sink, bias and padded included with any
+  window and layout, is declared: whether an engine serves it is the engine oracle's decision,
+  not the declaration's. The same holds for the archetypes: a numeric range bounds the search
+  and the neighbourhood, not a recorded workload, so an archetype outside it (DeepSeek-V3's
+  576/512 decode) is offered to the engine, which keeps it if it serves it.
 - `pointwise` for an fp16 ADD kernel: `--keep q.dtype=fp16 --keep q.mode=ADD`
   (`mode` uses the FlatBuffers enumerator names ADD, MUL, SUB, DIV, MAX_OP, MIN_OP).
 
@@ -130,11 +133,12 @@ regardless.
 Both SDPA declarations are past the 1024 bound (`sdpa_fwd` 53760 combinations, 38220 of them able
 to hold a problem; `sdpa_bwd` 10080, of them 6840), so each explores a sample of the
 combinations that can hold a problem, every declared value present. The sample walks the product
-in a keyed pseudo-random order (a Feistel permutation), not a stride: a stride ties digits of
-the product together and starved whole forms (`scale_unset` held 1 of the 56 combinations it was
-due). A `--keep` on an enum or bool facet narrows the combinations before that bound applies, so
-the sample is of the combinations the keep admits (a keep that leaves 8 of the 53760 explores
-all 8). `manifest.json` reports the combinations under
+in a pseudo-random order keyed by `--seed` (a Feistel permutation), not a stride: a stride ties
+digits of the product together and starved whole forms (`scale_unset` held 1 of the 56
+combinations it was due). Another `--seed` samples other combinations, so sets generated under
+several seeds cover more of the product than one. A `--keep` on an enum or bool facet narrows the
+combinations before that bound applies, so the sample is of the combinations the keep admits (a
+keep that leaves 8 of the 53760 explores all 8). `manifest.json` reports the combinations under
 `reports.categorical_combinations.<operation>`: `total` is the product the keeps admit,
 `constraint_empty` how many of them the declaration's constraints leave unable to hold a problem
 (`ragged` over `bhsd`, say), and `not_explored` how many that can hold a problem the bound left

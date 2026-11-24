@@ -182,6 +182,9 @@ TEST(TestShippedGraphsValidate, EverySdpaFormLayoutScaleWindowAndSequenceRelatio
                                   {1024, 1024, 512, true},
                                   {512, 512, 192, true},
                                   {1, 4096, 128, true},
+                                  // A recorded head past head_dim's range (DeepSeek-V3's absorbed
+                                  // decode archetype): ranges bound the search, not archetypes.
+                                  {1, 4096, 576, true},
                                   {197, 197, 8, false}};
         // The declared cross attention archetype, drawn once, is a shape too.
         const auto crossAttention = std::find_if(
@@ -195,8 +198,11 @@ TEST(TestShippedGraphsValidate, EverySdpaFormLayoutScaleWindowAndSequenceRelatio
         if(crossAttention != metadata.archetypes.end())
         {
             std::mt19937_64 rng(7);
-            const auto drawn = detail::drawFromArchetype(
-                metadata, *crossAttention, test::withDefaultCategoricals(metadata, {}), rng);
+            // The archetype anchors both masks; let it pick.
+            auto categorical = test::withDefaultCategoricals(metadata, {});
+            categorical.erase("is_causal");
+            const auto drawn
+                = detail::drawFromArchetype(metadata, *crossAttention, categorical, rng);
             ASSERT_TRUE(drawn.has_value()) << operation;
             shapes.push_back({std::get<int64_t>(drawn->at("seqlen_q")),
                               std::get<int64_t>(drawn->at("seqlen_k")),

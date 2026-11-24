@@ -18,6 +18,7 @@
 #include "OperationsDir.hpp"
 #include <algorithm>
 #include <fstream>
+#include <iterator>
 #include <map>
 #include <numeric>
 #include <set>
@@ -853,6 +854,43 @@ TEST(TestProblemSpace, EveryShippedSdpaCombinationIsExploredAndNoDeclaredValueIs
             }
         }
     }
+}
+
+TEST(TestProblemSpace, PastTheBoundTheSeedChoosesWhichCombinationsAreSampled)
+{
+    // The sample is a sixteenth of sdpa_fwd's live combinations. Under one fixed order every
+    // seed would explore the same sixteenth, so regenerating under another seed would add no
+    // coverage; the seed keys the order instead, and the same seed retraces it.
+    const auto metadata = test::shippedOperation("sdpa_fwd");
+    const auto live = [&metadata](const ProblemPoint& combination) {
+        return !detail::excludedByCategoricals(metadata, combination);
+    };
+    const auto sample = [&](uint64_t seed) {
+        size_t total = 0;
+        std::set<std::string> described;
+        for(const auto& combination :
+            detail::categoricalCombinations(metadata.parameters,
+                                            ExplorationRequest{}.maxCombinations,
+                                            total,
+                                            live,
+                                            {},
+                                            nullptr,
+                                            seed))
+        {
+            described.insert(detail::describe(combination));
+        }
+        return described;
+    };
+
+    const auto first = sample(1);
+    EXPECT_EQ(first, sample(1)) << "a seed must retrace its own sample";
+    const auto second = sample(2);
+    std::vector<std::string> shared;
+    std::set_intersection(
+        first.begin(), first.end(), second.begin(), second.end(), std::back_inserter(shared));
+    // Two independent draws of 1024 from about 16000 share about 64.
+    EXPECT_LT(shared.size(), first.size() / 4)
+        << shared.size() << " of " << first.size() << " combinations shared by seeds 1 and 2";
 }
 
 TEST(TestProblemSpace, AKeepOnACategoricalAxisNarrowsTheCombinationsBeforeTheBoundApplies)

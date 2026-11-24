@@ -115,7 +115,8 @@ if(HIPDNN_BUILD_FRONTEND AND HIPDNN_BUILD_BACKEND)
                 # A focused search that stops without proof reports the regime not reached, not
                 # saturated, and the short quota exits 3: with the sweep off this seed's search
                 # finds none of cross_long_gqa, a sliver (more than 2048 keys, then more queries).
-                "regime_not_reached|--without-engine,--operations,${_operations_dir},--operation,sdpa_fwd,--regime-quota,cross_long_gqa=1,--regime-quota,decode_short_mha=3,--sweep-share,0,--seed,1|3|3|||reports.regime_quota.sdpa_fwd.cross_long_gqa.saturated=OFF,reports.regime_quota.sdpa_fwd.cross_long_gqa.delivered=0,reports.regime_quota.sdpa_fwd.decode_short_mha.delivered=3"
+                # The seed also keys the categorical sample.
+                "regime_not_reached|--without-engine,--operations,${_operations_dir},--operation,sdpa_fwd,--regime-quota,cross_long_gqa=1,--regime-quota,decode_short_mha=3,--sweep-share,0,--seed,6|3|3|||reports.regime_quota.sdpa_fwd.cross_long_gqa.saturated=OFF,reports.regime_quota.sdpa_fwd.cross_long_gqa.delivered=0,reports.regime_quota.sdpa_fwd.decode_short_mha.delivered=3"
                 # The model shapes file carries no column for layout, scale, window or
                 # value_head_dim, so its one row takes the declared defaults, and the report
                 # counts them.

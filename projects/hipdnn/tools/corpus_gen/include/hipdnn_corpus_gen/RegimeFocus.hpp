@@ -462,7 +462,9 @@ inline RegimeSearchResult exploreRegime(const OperationMetadata& metadata,
             [&metadata](const ProblemPoint& candidate) {
                 return !detail::excludedByCategoricals(metadata, candidate);
             },
-            request.keep))
+            request.keep,
+            nullptr,
+            request.seed))
     {
         bool matches = true;
         for(const auto& [name, value] : focus.categoricalPins)

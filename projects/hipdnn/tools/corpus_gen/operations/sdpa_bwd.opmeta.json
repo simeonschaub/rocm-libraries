@@ -187,8 +187,8 @@
     "same operation and entirely different problems, which is why they are anchored as separate",
     "archetypes rather than as one range over seqlen_q. Cross attention (more queries than keys)",
     "draws its two sequences from different tensors, so it varies independently of the rest --",
-    "the constraint admits it only under a non-causal mask, and the clause files it under",
-    "'cross' rather than 'append'.",
+    "the constraints admit it under a causal mask only with the top-left anchor, where every",
+    "query row keeps a key, and the clause files it under 'cross' rather than 'append'.",
     "Grouping (mha/gqa/mqa) is the third facet: how many query heads share one KV head decides",
     "how much of the KV cache a wavefront re-reads, which is the whole difference between a",
     "decode that is bandwidth bound and one that is not. It is a label rather than a bucket",
@@ -3559,7 +3559,7 @@
     },
     {
       "name": "cross_attention",
-      "note": "more queries than keys, from different tensors: diffusion and encoder-decoder attention over a short text or memory sequence. Bidirectional, as such attention is; a causal mask over more queries than keys is declared too (top-left, where every query row keeps a key), reached by exploration",
+      "note": "more queries than keys, from different tensors: diffusion and encoder-decoder attention over a short text or memory sequence. Bidirectional, as such attention is, and also anchored under a causal mask over more queries than keys (top-left, where every query row keeps a key), which hipDNN accepts and exploration alone rarely reaches",
       "values": {
         "batch": [
           1,
@@ -3591,7 +3591,44 @@
           160
         ],
         "is_causal": [
-          false
+          false,
+          true
+        ]
+      }
+    },
+    {
+      "name": "deepseek_v3_mla_training",
+      "note": "DeepSeek-V3's multi-head latent attention in training: 128 heads (or a tensor-parallel shard of them), Q and K 192 wide (128 no-RoPE plus 64 RoPE), V 128 wide",
+      "values": {
+        "batch": [
+          1,
+          2,
+          4
+        ],
+        "heads": [
+          16,
+          32,
+          128
+        ],
+        "heads_kv": [
+          "$q.heads"
+        ],
+        "seqlen_q": [
+          2048,
+          4096,
+          8192
+        ],
+        "seqlen_k": [
+          "$q.seqlen_q"
+        ],
+        "head_dim": [
+          192
+        ],
+        "value_head_dim": [
+          "mla"
+        ],
+        "is_causal": [
+          true
         ]
       }
     }

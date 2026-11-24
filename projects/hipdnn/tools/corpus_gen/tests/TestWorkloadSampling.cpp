@@ -120,9 +120,16 @@ TEST(TestWorkloadSampling, EveryShippedSdpaArchetypeDrawsWhateverOrderItsKeysPar
         std::mt19937_64 rng(4);
         for(const auto& archetype : metadata.archetypes)
         {
+            // The MLA archetypes say their value head; the others take the default one.
+            auto forArchetype = categorical;
+            if(archetype.values.count("value_head_dim") != 0)
+            {
+                forArchetype.erase("value_head_dim");
+            }
             for(int i = 0; i < 20; ++i)
             {
-                const auto drawn = detail::drawFromArchetype(metadata, archetype, categorical, rng);
+                const auto drawn
+                    = detail::drawFromArchetype(metadata, archetype, forArchetype, rng);
                 ASSERT_TRUE(drawn.has_value()) << operation << " " << archetype.name;
                 if(archetype.values.at("seqlen_k").front() == "$q.seqlen_q")
                 {

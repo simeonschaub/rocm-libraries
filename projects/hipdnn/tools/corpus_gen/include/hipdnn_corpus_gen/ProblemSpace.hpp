@@ -239,19 +239,22 @@ inline uint64_t tieKey(uint64_t seed, size_t index)
     return z ^ (z >> 31);
 }
 
-/// A fixed bijection of [0, @p total), the order a product too large to take whole is walked in:
-/// a balanced Feistel network over the bits of the smallest even power of two at least @p total,
-/// its rounds keyed by tieKey, cycle-walked (applied again until the value is in range), which
-/// keeps it a bijection of [0, total). Unlike a stride through the product, it ties no digit of
-/// the mixed-radix index to another: even a stride coprime to the product moves some digits
-/// together, and sdpa_fwd's 23040 combinations walked at a stride of 14239 held 1 scale_unset
-/// combination where 56 were due, because the one scale that form admits was a value of the
-/// digit the stride had tied to it.
+/// A bijection of [0, @p total) under @p seed, the order a product too large to take whole is
+/// walked in: a balanced Feistel network over the bits of the smallest even power of two at least
+/// @p total, its rounds keyed by tieKey under round keys the seed selects (seed 0 keys them 0 to
+/// 3), cycle-walked (applied again until the value is in range), which keeps it a bijection of
+/// [0, total). Each seed is its own order, so corpora generated under different seeds sample
+/// different combinations, and the same seed retraces the same ones. Unlike a stride through the
+/// product, it ties no digit of the mixed-radix index to another: even a stride coprime to the
+/// product moves some digits together, and sdpa_fwd's 23040 combinations walked at a stride of
+/// 14239 held 1 scale_unset combination where 56 were due, because the one scale that form
+/// admits was a value of the digit the stride had tied to it.
 class ScatteredOrder
 {
 public:
-    explicit ScatteredOrder(size_t total)
+    ScatteredOrder(size_t total, uint64_t seed)
         : _total(total)
+        , _roundKeyBase(seed * ROUNDS)
     {
         while(_halfBits < 32 && (uint64_t{1} << (2 * _halfBits)) < total)
         {
@@ -280,7 +283,8 @@ private:
         uint64_t right = value & _halfMask;
         for(uint64_t round = 0; round < ROUNDS; ++round)
         {
-            const uint64_t mixed = left ^ (tieKey(round, static_cast<size_t>(right)) & _halfMask);
+            const uint64_t mixed
+                = left ^ (tieKey(_roundKeyBase + round, static_cast<size_t>(right)) & _halfMask);
             left = right;
             right = mixed;
         }
@@ -288,6 +292,7 @@ private:
     }
 
     size_t _total;
+    uint64_t _roundKeyBase;
     uint64_t _halfBits = 1;
     uint64_t _halfMask = 1;
 };
@@ -299,11 +304,12 @@ private:
 /// Past the limit the product is sampled, not cut to a prefix (a prefix keeps only the first
 /// values of the earliest parameters), and each value the sample missed gets a combination of
 /// its own, so a model trained on the corpus has seen every value (§5.2). The sample walks the
-/// product in a fixed pseudo-random order (ScatteredOrder), so it visits distinct combinations
-/// spread over every pair of values rather than along whichever digits a stride ties together.
-/// @p live, when given, says which combinations can hold a problem (see excludedByCategoricals):
-/// only those are sampled, so the limit is spent on combinations that count. The order is a
-/// fixed function of the product, so the result is reproducible.
+/// product in a pseudo-random order keyed by @p seed (ScatteredOrder), so it visits distinct
+/// combinations spread over every pair of values rather than along whichever digits a stride
+/// ties together, and another seed samples other combinations. @p live, when given, says which
+/// combinations can hold a problem (see excludedByCategoricals): only those are sampled, so the
+/// limit is spent on combinations that count. The order is a fixed function of the product and
+/// the seed, so the result is reproducible.
 ///
 /// @p constraintEmpty, when given, receives how many combinations of the admitted product @p
 /// live refuses, counted over the whole product and not only the part the sample walks: past
@@ -318,7 +324,8 @@ inline std::vector<ProblemPoint>
                             size_t& total,
                             const std::function<bool(const ProblemPoint&)>& live = {},
                             const std::vector<KeepClause>& keep = {},
-                            size_t* constraintEmpty = nullptr)
+                            size_t* constraintEmpty = nullptr,
+                            uint64_t seed = 0)
 {
     if(constraintEmpty != nullptr)
     {
@@ -377,7 +384,7 @@ inline std::vector<ProblemPoint>
         return combinations;
     }
 
-    const ScatteredOrder order(total);
+    const ScatteredOrder order(total, seed);
     const auto counts = [&live](const ProblemPoint& point) { return !live || live(point); };
 
     combinations.reserve(limit);
@@ -1130,7 +1137,8 @@ inline ProblemCorpus exploreProblemSpace(const OperationMetadata& metadata,
             return !detail::excludedByCategoricals(metadata, combination);
         },
         request.keep,
-        &constraintEmpty);
+        &constraintEmpty,
+        request.seed);
 
     corpus.categoricalTotal = totalCombinations;
     corpus.categoricalConstraintEmpty = constraintEmpty;
