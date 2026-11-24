@@ -230,6 +230,11 @@ _warned_inherited: set[str] = set()
 EVALUATOR_NAME = "hipdnn_uhd_features"
 EVALUATOR_ENV_VAR = "HIPDNN_UHD_FEATURE_EVALUATOR"
 
+#: hipdnn_uhd_features refuses a request over 256 MiB (UhdFeatures.cpp MAX_REQUEST_BYTES).
+#: Each row is extracted on its own and the hash covers only the signature, so a larger
+#: table is sent as several requests, each at most this size (half the cap: headroom).
+MAX_REQUEST_BYTES = 128 * 1024 * 1024
+
 #: Evaluator locations under a search root: install/venv `bin`, or in-tree `build/bin`.
 _EVALUATOR_RELATIVE_DIRS = ("bin", "build/bin")
 
@@ -303,23 +308,17 @@ def evaluator_feature_semantics_revision(executable: str | Path | None = None) -
     return _run_feature_evaluator([], None, [], executable)[2]
 
 
-def run_evaluator(
-    request: dict | None,
-    executable: str | Path | None = None,
-    mode: str | None = None,
+def _encode(value) -> str:
+    return json.dumps(value, ensure_ascii=False, allow_nan=False)
+
+
+def _invoke_evaluator(
+    text: str, executable: str | Path | None, flags: list[str]
 ) -> dict:
-    """The only crossing into hipdnn_uhd_features: resolve it, send `request` (None: nothing)
-    and return its parsed answer, whatever the mode (`--lint`, `--optional-features`, or the
-    default feature extraction). A nonzero exit or an unparsable answer is a ValueError.
-    """
-    flags = [] if mode is None else [mode]
+    """Send one request body to hipdnn_uhd_features and parse its answer."""
     result = subprocess.run(
         [resolve_feature_evaluator(executable), *flags],
-        input=(
-            ""
-            if request is None
-            else json.dumps(request, ensure_ascii=False, allow_nan=False)
-        ),
+        input=text,
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -336,23 +335,45 @@ def run_evaluator(
         raise ValueError(f"invalid {EVALUATOR_NAME} response: {error}") from error
 
 
-def _run_feature_evaluator(
-    signature: list,
-    categorical_encoding: dict | None,
-    rows: list,
-    executable: str | Path | None,
-) -> tuple[str, list[list[float]], int]:
-    """Features and digest of `signature` over `rows`, from FeatureExtractor, which owns both.
-
-    Entries are parsed first only for a readable error; the evaluator does the hashing.
+def run_evaluator(
+    request: dict | None,
+    executable: str | Path | None = None,
+    mode: str | None = None,
+) -> dict:
+    """The only crossing into hipdnn_uhd_features: resolve it, send `request` (None: nothing)
+    and return its parsed answer, whatever the mode (`--lint`, `--optional-features`, or the
+    default feature extraction). A nonzero exit or an unparsable answer is a ValueError.
     """
-    parsed = [parse_signature_entry(entry) for entry in signature]
-    request = {
-        "signature": parsed,
-        "categorical_encoding": categorical_encoding or {},
-        "rows": rows,
-    }
-    response = run_evaluator(request, executable)
+    flags = [] if mode is None else [mode]
+    return _invoke_evaluator(
+        "" if request is None else _encode(request), executable, flags
+    )
+
+
+def _row_batches(encoded_rows: list[str], budget: int):
+    """Consecutive runs of `encoded_rows` whose joined size stays within `budget` bytes.
+
+    Always yields at least one batch, so an empty table still reaches the evaluator.
+    """
+    batch: list[str] = []
+    size = 0
+    for index, row in enumerate(encoded_rows):
+        # Each row costs its UTF-8 bytes plus the ", " that joins it to the next.
+        cost = len(row.encode("utf-8")) + 2
+        if cost > budget:
+            raise ValueError(
+                f"feature row {index} alone is {cost} bytes, over the {budget}-byte "
+                f"{EVALUATOR_NAME} request budget"
+            )
+        if batch and size + cost > budget:
+            yield batch
+            batch, size = [], 0
+        batch.append(row)
+        size += cost
+    yield batch
+
+
+def _check_response(response, row_count: int, width: int) -> tuple[str, list, int]:
     try:
         digest, values = response["features_hash"], response["values"]
         # An evaluator that omits it predates the field: revision 1 by definition.
@@ -363,7 +384,7 @@ def _run_feature_evaluator(
             )
         if not isinstance(digest, str) or not digest.startswith("sha256:"):
             raise ValueError("missing features_hash")
-        if len(values) != len(rows) or any(len(row) != len(parsed) for row in values):
+        if len(values) != row_count or any(len(row) != width for row in values):
             raise ValueError("feature matrix shape does not match the request")
         if any(
             not isinstance(value, (int, float)) or not math.isfinite(value)
@@ -373,6 +394,43 @@ def _run_feature_evaluator(
             raise ValueError("non-finite or non-numeric feature result")
     except (KeyError, TypeError, ValueError) as error:
         raise ValueError(f"invalid {EVALUATOR_NAME} response: {error}") from error
+    return digest, values, revision
+
+
+def _run_feature_evaluator(
+    signature: list,
+    categorical_encoding: dict | None,
+    rows: list,
+    executable: str | Path | None,
+) -> tuple[str, list[list[float]], int]:
+    """Features and digest of `signature` over `rows`, from FeatureExtractor, which owns both.
+
+    Entries are parsed first only for a readable error; the evaluator does the hashing.
+    Rows go over in as many requests as MAX_REQUEST_BYTES needs, each row encoded once;
+    every request must report the same digest and revision, and the values keep row order.
+    """
+    parsed = [parse_signature_entry(entry) for entry in signature]
+    head = _encode(
+        {"signature": parsed, "categorical_encoding": categorical_encoding or {}}
+    )
+    # `head` ends in "}": reopen it to append the rows array.
+    prefix = head[:-1] + ', "rows": ['
+    budget = MAX_REQUEST_BYTES - len(prefix.encode("utf-8")) - len("]}")
+    digest = revision = None
+    values: list[list[float]] = []
+    for batch in _row_batches([_encode(row) for row in rows], budget):
+        response = _invoke_evaluator(prefix + ", ".join(batch) + "]}", executable, [])
+        batch_digest, batch_values, batch_revision = _check_response(
+            response, len(batch), len(parsed)
+        )
+        if digest is None:
+            digest, revision = batch_digest, batch_revision
+        elif (batch_digest, batch_revision) != (digest, revision):
+            raise ValueError(
+                f"invalid {EVALUATOR_NAME} response: requests of one table disagree "
+                f"({digest}, revision {revision} vs {batch_digest}, revision {batch_revision})"
+            )
+        values.extend(batch_values)
     return digest, values, revision
 
 

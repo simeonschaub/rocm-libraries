@@ -5,6 +5,7 @@
 The hash has one definition, FeatureExtractor::computeHash, reached through the shared
 evaluator (RFC 0019 §6.3).
 """
+import json
 import os
 import sys
 from pathlib import Path
@@ -208,3 +209,77 @@ def test_reference_collection_preserves_generic_and_categorical_dependencies():
         "$attention.dims[2]",
         "$device.cu_count",
     ]
+
+
+class _FakeEvaluator:
+    """Stands in for hipdnn_uhd_features: refuses a body over the cap it is given, as the
+    binary refuses one over 256 MiB, and answers each row with its own `$q.batch`."""
+
+    def __init__(self, cap, digests=("sha256:00000000000000aa",)):
+        self.cap, self.digests, self.bodies = cap, list(digests), []
+
+    def __call__(self, text, executable, flags):
+        assert len(text.encode("utf-8")) <= self.cap, "request over the evaluator's cap"
+        self.bodies.append(text)
+        request = json.loads(text)
+        digest = self.digests[min(len(self.bodies), len(self.digests)) - 1]
+        return {
+            "features_hash": digest,
+            "feature_semantics_revision": 1,
+            "values": [[row["q.batch"]] for row in request["rows"]],
+        }
+
+
+def test_a_table_over_the_request_cap_is_sent_in_batches_and_keeps_row_order(
+    monkeypatch,
+):
+    """The evaluator refuses one oversized request, so a large table must go over in
+    several, each under the cap, answering exactly as one request would."""
+    monkeypatch.setattr(features, "MAX_REQUEST_BYTES", 400)
+    fake = _FakeEvaluator(cap=400)
+    monkeypatch.setattr(features, "_invoke_evaluator", fake)
+    rows = [{"q.batch": index} for index in range(100)]
+    digest, values = features.evaluate_feature_maps(rows, ["$q.batch"])
+    assert len(fake.bodies) > 1
+    assert digest == "sha256:00000000000000aa"
+    assert values == [[index] for index in range(100)]
+
+
+def test_a_table_within_the_cap_is_one_request(monkeypatch):
+    fake = _FakeEvaluator(cap=features.MAX_REQUEST_BYTES)
+    monkeypatch.setattr(features, "_invoke_evaluator", fake)
+    _, values = features.evaluate_feature_maps(
+        [{"q.batch": 4}, {"q.batch": 8}], ["$q.batch"]
+    )
+    assert len(fake.bodies) == 1 and values == [[4], [8]]
+
+
+def test_an_empty_table_still_asks_the_evaluator(monkeypatch):
+    """The revision and hash come from the evaluator even with no rows."""
+    fake = _FakeEvaluator(cap=features.MAX_REQUEST_BYTES)
+    monkeypatch.setattr(features, "_invoke_evaluator", fake)
+    assert features.evaluate_feature_maps([], ["$q.batch"]) == (
+        "sha256:00000000000000aa",
+        [],
+    )
+    assert len(fake.bodies) == 1
+
+
+def test_batches_that_report_different_hashes_are_refused(monkeypatch):
+    monkeypatch.setattr(features, "MAX_REQUEST_BYTES", 400)
+    fake = _FakeEvaluator(
+        cap=400, digests=("sha256:00000000000000aa", "sha256:00000000000000bb")
+    )
+    monkeypatch.setattr(features, "_invoke_evaluator", fake)
+    with pytest.raises(ValueError, match="requests of one table disagree"):
+        features.evaluate_feature_maps(
+            [{"q.batch": index} for index in range(100)], ["$q.batch"]
+        )
+
+
+def test_a_row_larger_than_the_cap_is_refused_by_index(monkeypatch):
+    monkeypatch.setattr(features, "MAX_REQUEST_BYTES", 400)
+    monkeypatch.setattr(features, "_invoke_evaluator", _FakeEvaluator(cap=400))
+    rows = [{"q.batch": 1}, {"q.batch": 2, "pad": "x" * 500}]
+    with pytest.raises(ValueError, match="feature row 1 alone is"):
+        features.evaluate_feature_maps(rows, ["$q.batch"])
