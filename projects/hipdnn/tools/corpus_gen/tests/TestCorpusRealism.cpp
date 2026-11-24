@@ -412,10 +412,13 @@ TEST_P(TestShippedSdpaRealism, CorpusCoversHeadDimsLayoutsAndSequenceRelationsAM
     const auto metadata = test::shippedOperation(GetParam());
 
     // The default first pass: 50 points for each live combination of the unweighted parameters
-    // (is_causal, alignment, dtype, form and, in the forward, generate_stats), about 8900 rows in
-    // the forward and 2700 in the backward, enough that the shares below are not noise.
+    // (is_causal, alignment, form, and dtype in the backward and generate_stats in the forward),
+    // about 2700 rows in the backward. The forward weights dtype, which splits the budget where
+    // an unweighted one multiplied it by three, so it takes 150 to keep the 8900 rows the shares
+    // below were measured on, enough that they are not noise.
     ExplorationRequest request;
     request.seed = 9;
+    request.pointsPerCombination = GetParam() == "sdpa_fwd" ? 150 : 50;
     const auto problems = exploreProblemSpace(metadata, request, ACCEPT_EVERYTHING).problems();
     ASSERT_GT(problems.size(), GetParam() == "sdpa_fwd" ? 5000U : 1500U);
 
@@ -435,8 +438,13 @@ TEST_P(TestShippedSdpaRealism, CorpusCoversHeadDimsLayoutsAndSequenceRelationsAM
         if(q > k)
         {
             ++cross;
-            EXPECT_FALSE(std::get<bool>(point.at("is_causal")))
-                << "a causal mask with more queries than keys";
+            // A causal mask over more queries than keys is anchored top-left, where every
+            // query row keeps a key.
+            if(std::get<bool>(point.at("is_causal")))
+            {
+                EXPECT_EQ(std::get<std::string>(point.at("alignment")), "top_left")
+                    << "a bottom-right causal mask with more queries than keys";
+            }
         }
         layouts.insert(std::get<std::string>(point.at("layout")));
     }
@@ -456,7 +464,7 @@ TEST_P(TestShippedSdpaRealism, CorpusCoversHeadDimsLayoutsAndSequenceRelationsAM
     EXPECT_GT(share(wide), SDPA_WIDE_SHARE) << "most rows should be heads of D >= 32";
     EXPECT_GT(share(square), SDPA_SQUARE_SHARE) << "prefill is the dominant case";
     EXPECT_GT(cross, 0U) << "no cross attention";
-    EXPECT_EQ(layouts, (std::set<std::string>{"bhsd", "bshd", "kv_bhsd"}));
+    EXPECT_EQ(layouts, (std::set<std::string>{"bhsd", "bshd", "kv_bhsd", "qkv_packed", "sbhd"}));
 }
 
 TEST_P(TestShippedSdpaRealism, ArchetypesAnchorCrossAttentionAndTheHeadWidthsOfRealModels)
