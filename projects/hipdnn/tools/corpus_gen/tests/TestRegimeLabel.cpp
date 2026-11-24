@@ -386,10 +386,19 @@ TEST(TestRegimeFocus, AnUnservedRegimeCostsOnlyTheProbe)
     EXPECT_TRUE(found.problems.empty());
     EXPECT_FALSE(found.saturated);
     // The sample is capped at maxCombinations, plus one extra combination per declared value it
-    // missed, so the cap is what the enumeration actually yields.
+    // missed, so the cap is what the enumeration actually yields: the same sample the focus
+    // takes, of the combinations that can hold a problem, under the request's seed.
     size_t total = 0;
-    const auto combinations
-        = detail::categoricalCombinations(metadata.parameters, request.maxCombinations, total);
+    const auto combinations = detail::categoricalCombinations(
+        metadata.parameters,
+        request.maxCombinations,
+        total,
+        [&metadata](const ProblemPoint& combination) {
+            return !detail::excludedByCategoricals(metadata, combination);
+        },
+        request.keep,
+        nullptr,
+        request.seed);
     EXPECT_LE(found.proposed, static_cast<int64_t>(combinations.size()) * request.probeBudget);
 }
 
@@ -511,9 +520,17 @@ TEST_P(TestShippedValueWeights,
     const auto few = exploreRegime(metadata, *focus, request, 60, SERVES_EVERYTHING, {}, {});
     ASSERT_GE(few.problems.size(), 60u);
     size_t total = 0;
-    const auto lanes
-        = detail::categoricalCombinations(metadata.parameters, request.maxCombinations, total)
-              .size();
+    const auto lanes = detail::categoricalCombinations(
+                           metadata.parameters,
+                           request.maxCombinations,
+                           total,
+                           [&metadata](const ProblemPoint& combination) {
+                               return !detail::excludedByCategoricals(metadata, combination);
+                           },
+                           request.keep,
+                           nullptr,
+                           request.seed)
+                           .size();
     EXPECT_LT(few.proposed, static_cast<int64_t>(lanes) * request.budgetPerCombination / 8)
         << "proposed " << few.proposed << " over " << lanes << " lanes";
 }
