@@ -991,10 +991,6 @@ RocblasltContractionProblem construct_rocblaslt_problem(rocblaslt_handle        
     return problem;
 }
 
-// C++ linkage, matching tensile_host.cpp. A declaration inside the extern "C"
-// block below would ask the loader for a different symbol.
-bool useRocRoller(rocblaslt_handle handle, const RocblasltContractionProblem& prob);
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -3556,7 +3552,6 @@ rocblaslt_status
         std::vector<rocblaslt_matmul_heuristic_result> override_result;
 
 #ifndef HIPBLASLT_USE_ROCROLLER
-        bool rocblaslt_routed_to_rocroller(rocblaslt_handle, const std::shared_ptr<void>&);
         const bool routedToRocRoller = gemmType == rocblaslt::RocGemmType::ROCBLASLT_GEMM
                                        && rocblaslt_routed_to_rocroller(handle, gemmData);
 #else

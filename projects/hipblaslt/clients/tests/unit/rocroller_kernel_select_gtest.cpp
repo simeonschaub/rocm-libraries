@@ -317,11 +317,24 @@ TEST(HostUnitRocRollerKernelSelect, smoke_PreferredUnrollingIsFourOnlyForLargeFp
 
 TEST(HostUnitRocRollerKernelSelect, smoke_FourGiBOperandExceedsTheBuffer)
 {
-    // FP32 is 4 bytes, so 65536 x 16384 is 4 GiB.
+    // FP32 is 4 bytes, so 65536 x 16384 is 4 GiB. One byte under that stays inside.
     EXPECT_TRUE(rocRollerOperandExceeds4GiB(
         HIP_R_8F_E4M3, HIP_R_8F_E4M3, HIP_R_32F, HIP_R_32F, 65536, 16384, 128));
     EXPECT_FALSE(rocRollerOperandExceeds4GiB(
+        HIP_R_8F_E4M3, HIP_R_8F_E4M3, HIP_R_32F, HIP_R_32F, 65536, 16384 - 1, 128));
+    EXPECT_FALSE(rocRollerOperandExceeds4GiB(
         HIP_R_8F_E4M3, HIP_R_8F_E4M3, HIP_R_16F, HIP_R_16F, 1024, 1024, 1024));
+    // FP4 is 4 bits. 2^32 elements is 2 GiB; 2^33 elements is exactly 4 GiB.
+    EXPECT_FALSE(rocRollerOperandExceeds4GiB(
+        HIP_R_4F_E2M1, HIP_R_16F, HIP_R_16F, HIP_R_16F, 1, 1, size_t(1) << 32));
+    EXPECT_TRUE(rocRollerOperandExceeds4GiB(
+        HIP_R_4F_E2M1, HIP_R_16F, HIP_R_16F, HIP_R_16F, 1, 1, size_t(1) << 33));
+    // FP6 rounds up to a byte. 5726623060 elements is 4 GiB - 1 byte; the next
+    // element is 4 GiB.
+    EXPECT_FALSE(rocRollerOperandExceeds4GiB(
+        HIP_R_6F_E2M3, HIP_R_16F, HIP_R_16F, HIP_R_16F, 1, 1, 5726623060u));
+    EXPECT_TRUE(rocRollerOperandExceeds4GiB(
+        HIP_R_6F_E2M3, HIP_R_16F, HIP_R_16F, HIP_R_16F, 1, 1, 5726623061u));
 }
 
 TEST(HostUnitRocRollerKernelSelect, smoke_KernelFieldsReadTheSolution)

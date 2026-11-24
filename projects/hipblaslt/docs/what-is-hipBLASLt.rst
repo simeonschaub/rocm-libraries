@@ -284,7 +284,9 @@ Two descriptor attributes deliberately constrain this selection.
 restricts hipBLASLt to kernels that add up their partial results in a consistent order across the
 ``M`` dimension. Identical input rows then yield bitwise identical output rows. Fewer kernels
 qualify, which can cost performance, and the call returns an error rather than quietly giving you a
-non-uniform result. ``HIPBLASLT_MATMUL_DESC_SM_COUNT_TARGET`` steers selection and grid sizing
+non-uniform result. A GEMM that hipBLASLt routes to rocRoller is the exception: rocRoller does not
+implement the request, so the library ignores it, logs that once, and may return rows that are not
+bitwise identical. ``HIPBLASLT_MATMUL_DESC_SM_COUNT_TARGET`` steers selection and grid sizing
 toward a compute-unit budget, which is useful when a GEMM has to share the device with other work.
 
 :doc:`hipBLASLt PCI chip ID predicates <./conceptual/pci-chip-id-predicates-walkthrough>` describes

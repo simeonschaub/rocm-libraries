@@ -563,6 +563,10 @@ struct RocblasltContractionProblem
     // This owned buffer is used to hold such overridden alpha values.
     // NOTE: sized to 16 bytes to hold any supported scalar type representation.
     std::array<int8_t, 16> alpha_owned = {0};
+    // Same for beta. A stored problem must not keep the caller's scalar pointer:
+    // scaleAlphaVec points alpha at a stack temporary, and a later heuristic
+    // reads both scalars again.
+    std::array<int8_t, 16> beta_owned = {0};
 
     hipDataType        a_type;
     const void*        A;

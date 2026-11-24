@@ -120,7 +120,9 @@ namespace hipblaslt_ext
          *  The mode is tri-state: a caller can use the uniform summation order (``1``),
          *  disable the uniform summation order (``0``), or inherit the handle request (``-1``).
          *
-         *  See ``HIPBLASLT_MATMUL_DESC_UNIFORM_SUMMATION_ORDER_EXT``.
+         *  See ``HIPBLASLT_MATMUL_DESC_UNIFORM_SUMMATION_ORDER_EXT``. A GEMM routed
+         *  to rocRoller ignores the request. rocRoller does not implement it, and
+         *  the rows of its Stream-K kernels may not be bitwise identical.
          */
         HIPBLASLT_EXPORT void setUniformSummationOrder(int32_t value);
 

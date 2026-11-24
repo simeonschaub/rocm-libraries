@@ -5,8 +5,9 @@
 
 // One entry from chooseSolutionIndexParameters, in that function's order.
 // unroll is the prefetchInFlight parameter_selection.cpp generates the tile
-// with. The non-temporal bits are kept for diagnostics; they only set cache
-// bits on the loads, so one checked-in kernel serves either value.
+// with. The non-temporal bits are kept for diagnostics. That function copies
+// origami's cache_hints_a and cache_hints_b onto them, and the MX kernel
+// generator never reads them, so one checked-in kernel serves either value.
 struct RocRollerSelectedTile
 {
     int  m                = 0;
